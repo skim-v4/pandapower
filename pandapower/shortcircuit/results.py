@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from pandapower.auxiliary import sequence_to_phase
+from pandapower.pypower.idx_brch import F_BUS, T_BUS
 from pandapower.pypower.idx_brch_sc import IKSS_F, IKSS_T, IP_F, IP_T, ITH_F, ITH_T, PKSS_F, QKSS_F, PKSS_T, QKSS_T, \
     VKSS_MAGN_F, VKSS_MAGN_T, VKSS_ANGLE_F, VKSS_ANGLE_T, IKSS_ANGLE_F, IKSS_ANGLE_T
 from pandapower.pypower.idx_bus_sc import IKSS1, IP, ITH, IKSS2, R_EQUIV_OHM, X_EQUIV_OHM, SKSS
@@ -77,6 +78,9 @@ def _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2):
     i_abc_ka = np.apply_along_axis(sequence_to_phase, 2, i_012_ka)
     # i_abc_ka = sequence_to_phase(np.vstack([i_ka_0, i_ka_1, i_ka_2]))
     i_abc_ka[np.abs(i_abc_ka) < 1e-10] = 0
+    # baseI = ppc_1["internal"]["baseI"][ppc_1["branch"][:, [F_BUS, T_BUS]].real.astype(np.int64)]
+    # i_base_ka = np.stack([baseI, baseI, baseI], 2)
+    # i_abc_ka /= i_base_ka
 
     v_pu_0 = ppc_0['branch'][:, [VKSS_MAGN_F, VKSS_MAGN_T]] * np.exp(1j * np.deg2rad(ppc_0['branch'][:, [VKSS_ANGLE_F, VKSS_ANGLE_T]].real))
     v_pu_1 = ppc_1['branch'][:, [VKSS_MAGN_F, VKSS_MAGN_T]] * np.exp(1j * np.deg2rad(ppc_1['branch'][:, [VKSS_ANGLE_F, VKSS_ANGLE_T]].real))
@@ -89,7 +93,8 @@ def _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2):
 
     # this is inefficient because it copies data to fit into a shape, better to use a slice,
     # and even better to find how to use sequence-based powers:
-    baseV = np.repeat(ppc_1["internal"]["baseV"], 2, axis=1)
+    # todo adjust using f, t instead
+    baseV = ppc_1["internal"]["baseV"][ppc_1["branch"][:, [F_BUS, T_BUS]].real.astype(np.int64)]
     v_base_kv = np.stack([baseV, baseV, baseV], 2)
 
     s_abc_mva = np.conj(i_abc_ka) * v_abc_pu * v_base_kv / np.sqrt(3)
@@ -102,14 +107,6 @@ def _get_line_1ph_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva):
     case = net._options["case"]
     if "line" in branch_lookup:
         f, t = branch_lookup["line"]
-        # a = np.arange(f, t) * 3
-        # b = np.arange(f, t) * 3 + 1
-        # c = np.arange(f, t) * 3 + 2
-
-        # phase_line_lookup = np.repeat(np.arange(f, t), 3)
-        # i_per_line_ka = np.split(np.abs(i_abc_ka), np.unique(np.repeat(np.arange(f, t), 3), return_index=True)[1])[1:]
-        # i_per_line_ka = np.split(np.abs(i_abc_ka), np.arange(3 * t, step=3))[1:]
-        # i_max_per_line_ka = np.vstack([np.max(a, axis=0) for a in i_per_line_ka])
         minmax = np.max if case == "max" else np.min
 
         # todo: check axis of max with more lines in the grid
@@ -136,12 +133,34 @@ def _get_line_1ph_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva):
             net.res_line_sc["ith_ka"] = minmax(ppc_1["branch"][f:t, [ITH_F, ITH_T]].real, axis=1)
 
 
+def _get_trafo_1ph_results(net, v_abc_pu, i_abc_ka, s_abc_mva):
+    branch_lookup = net._pd2ppc_lookups["branch"]
+    if "trafo" in branch_lookup:
+        f, t = branch_lookup["trafo"]
+
+        for phase_idx, phase in enumerate(("a", "b", "c")):
+            for side_idx, side in enumerate(("hv", "lv")):
+                net.res_trafo_sc[f"ikss_{phase}_{side}_ka"] = np.abs(i_abc_ka[f:t, side_idx, phase_idx])
+                net.res_trafo_sc[f"ikss_{phase}_{side}_degree"] = np.angle(i_abc_ka[f:t, side_idx, phase_idx], deg=True)
+
+            for side_idx, side in enumerate(("from", "to")):
+                net.res_trafo_sc[f"p_{phase}_{side}_mw"] = s_abc_mva[f:t, side_idx, phase_idx].real
+                net.res_trafo_sc[f"q_{phase}_{side}_mvar"] = s_abc_mva[f:t, side_idx, phase_idx].imag
+
+            for side_idx, side in enumerate(("from", "to")):
+                net.res_trafo_sc[f"vm_{phase}_{side}_pu"] = np.abs(v_abc_pu[f:t, side_idx, phase_idx])
+                net.res_trafo_sc[f"va_{phase}_{side}_degree"] = np.angle(v_abc_pu[f:t, side_idx, phase_idx], deg=True)
+
+    # todo: ip, ith
+
+
 def _extract_results(net, ppc_0, ppc_1, ppc_2, bus):
     _get_bus_results(net, ppc_0, ppc_1, ppc_2, bus)
     if net._options["branch_results"]:
         if net["_options"]["fault"] == "1ph":
             v_abc_pu, i_abc_ka, s_abc_mva = _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2)
             _get_line_1ph_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva)
+            _get_trafo_1ph_results(net, v_abc_pu, i_abc_ka, s_abc_mva)
         else:
             if net._options['return_all_currents']:
                 _get_line_all_results(net, ppc_1, bus)
