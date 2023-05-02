@@ -2,7 +2,7 @@
 
 # Copyright (c) 2016-2023 by University of Kassel and Fraunhofer Institute for Energy Economics
 # and Energy System Technology (IEE), Kassel. All rights reserved.
-
+import copy
 
 try:
     import pandaplan.core.pplog as logging
@@ -215,7 +215,7 @@ def _calc_sc(net, bus):
     _calc_current(net, ppci, bus)
 
     ppc = _copy_results_ppci_to_ppc(ppci, ppc, "sc")
-    _extract_results(net, ppc, ppc_0=None, bus=bus)
+    _extract_results(net, ppc_0=None, ppc_1=ppc, ppc_2=None, bus=bus)
     _clean_up(net)
 
     if "ybus_fact" in ppci["internal"]:
@@ -229,38 +229,44 @@ def _calc_sc_1ph(net, bus):
     """
     _add_auxiliary_elements(net)
     # pos. seq bus impedance
-    ppc, ppci = _init_ppc(net)
-    # Create k updated ppci
+    ppc_1, ppci_1 = _init_ppc(net)
+    # Create k updated ppci_1
     ppci_bus = _get_is_ppci_bus(net, bus)
-    _, ppci, _ = _create_k_updated_ppci(net, ppci, ppci_bus=ppci_bus)
-    _calc_ybus(ppci)
+    _, ppci_1, _ = _create_k_updated_ppci(net, ppci_1, ppci_bus=ppci_bus)
+    _calc_ybus(ppci_1)
 
     # zero seq bus impedance
-    ppc_0, ppci_0 = _pd2ppc_zero(net, ppc['branch'][:, K_ST])
+    ppc_0, ppci_0 = _pd2ppc_zero(net, ppc_1['branch'][:, K_ST])
     _calc_ybus(ppci_0)
 
     if net["_options"]["inverse_y"]:
-        _calc_zbus(net, ppci)
+        _calc_zbus(net, ppci_1)
         _calc_zbus(net, ppci_0)
     else:
         # Factorization Ybus once
-        ppci["internal"]["ybus_fact"] = factorized(ppci["internal"]["Ybus"])
+        ppci_1["internal"]["ybus_fact"] = factorized(ppci_1["internal"]["Ybus"])
         ppci_0["internal"]["ybus_fact"] = factorized(ppci_0["internal"]["Ybus"])
 
     ppci_bus = _get_is_ppci_bus(net, bus)
-    _calc_rx(net, ppci, ppci_bus)
-    _add_kappa_to_ppc(net, ppci)
+    _calc_rx(net, ppci_1, ppci_bus)
+    _add_kappa_to_ppc(net, ppci_1)
 
     _calc_rx(net, ppci_0, ppci_bus)
-    _calc_ikss_1ph(net, ppci, ppci_0, ppci_bus)
+
+    # input for negative sequence is same as for positive sequence
+    ppc_2 = copy.deepcopy(ppc_1)
+    ppci_2 = copy.deepcopy(ppci_1)
+
+    _calc_ikss_1ph(net, ppci_0, ppci_1, ppci_2, ppci_bus)
+    # from here on, the V_ikss in ppci_0, ppci_1, ppci_2 are in phase frame!
 
     if net._options["branch_results"]:
-        if net._options["fault"] == "3ph":
-            _calc_branch_currents_complex(net, ppci, ppci_bus)
-        else:
-            _calc_branch_currents(net, ppci, ppci_bus)
+        _calc_branch_currents_complex(net, ppci_0, ppci_bus)
+        _calc_branch_currents_complex(net, ppci_1, ppci_bus)
+        _calc_branch_currents_complex(net, ppci_2, ppci_bus)
 
     ppc_0 = _copy_results_ppci_to_ppc(ppci_0, ppc_0, "sc")
-    ppc = _copy_results_ppci_to_ppc(ppci, ppc, "sc")
-    _extract_results(net, ppc, ppc_0, bus=bus)
+    ppc_1 = _copy_results_ppci_to_ppc(ppci_1, ppc_1, "sc")
+    ppc_2 = _copy_results_ppci_to_ppc(ppci_2, ppc_2, "sc")
+    _extract_results(net, ppc_0, ppc_1, ppc_2, bus=bus)
     _clean_up(net)

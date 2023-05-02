@@ -487,6 +487,64 @@ def test_line():
     sc.calc_sc(net, fault="1ph", case="max")
     assert np.allclose(net.res_bus_sc, res, rtol=0, atol=1e-6)
 
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=1)
+    assert np.allclose(net.res_line_sc.values,
+                       [4.968909, 4.968909, -76.322582, 4.968909, 103.677418, 49.380121, 10.287525, 0., 0.,
+                        0.159840, -64.554294, 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1.1, -120., 1.040081,
+                        -122.717776, 0., 0., 0., 0., 0., 0., 0., 0., 1.1, 120., 1.173594, 118.620866],
+                       rtol=0, atol=1e-5)
+
+
+def test_2_lines():
+    net = pp.create_empty_network(sn_mva=17)
+    b1 = pp.create_bus(net, 110)
+    pp.create_ext_grid(net, b1, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+
+    b2 = pp.create_bus(net, 110)
+    b3 = pp.create_bus(net, 110)
+
+    pp.create_line_from_parameters(net, b1, b2, 1, 1, 0.5, 0., 10, r0_ohm_per_km=4, x0_ohm_per_km=0.25, c0_nf_per_km=0.)
+    pp.create_line_from_parameters(net, b2, b3, 1, 1, 0.5, 0., 10, r0_ohm_per_km=4, x0_ohm_per_km=0.25, c0_nf_per_km=0.)
+
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=2)
+
+
+def test_4_lines():
+    net = pp.create_empty_network(sn_mva=17)
+    pp.create_buses(net, 5, 110)
+    pp.create_ext_grid(net, 0, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+
+    pp.create_line_from_parameters(net, 0, 1, 1, 1, 0.5, 0., 10, r0_ohm_per_km=4, x0_ohm_per_km=0.25, c0_nf_per_km=0.)
+    pp.create_line_from_parameters(net, 1, 2, 1, 1, 0.5, 0., 10, r0_ohm_per_km=4, x0_ohm_per_km=0.25, c0_nf_per_km=0.)
+    pp.create_line_from_parameters(net, 1, 3, 1, 1, 0.5, 0., 10, r0_ohm_per_km=4, x0_ohm_per_km=0.25, c0_nf_per_km=0.)
+    pp.create_line_from_parameters(net, 3, 4, 1, 1, 0.5, 0., 10, r0_ohm_per_km=4, x0_ohm_per_km=0.25, c0_nf_per_km=0.)
+
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=4)
+
+
+def test_trafo_temp():
+    vc = "Yyn"
+    net = pp.create_empty_network(sn_mva=1)
+    pp.create_bus(net, vn_kv=110.)
+    pp.create_bus(net, vn_kv=20.)
+
+    pp.create_ext_grid(net, 0, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+
+    t1 = pp.create_transformer_from_parameters(net, 0, 1, sn_mva=150,
+                                               pfe_kw=10, i0_percent=0.1,
+                                               vn_hv_kv=110., vn_lv_kv=20, vk_percent=16, vkr_percent=0.5,
+                                               pt_percent=12, vk0_percent=15.2,
+                                               vkr0_percent=0.5, vector_group=vc,
+                                               mag0_percent=100, mag0_rx=0, si0_hv_partial=0.5)
+
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=1)
+
 
 def test_trafo():
     results = {
