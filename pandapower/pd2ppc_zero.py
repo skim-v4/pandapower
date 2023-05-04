@@ -15,7 +15,7 @@ from pandapower.build_bus import _build_bus_ppc, _build_svc_ppc
 from pandapower.build_gen import _build_gen_ppc
 # from pandapower.pd2ppc import _ppc2ppci, _init_ppc
 from pandapower.pypower.idx_brch import BR_B, BR_R, BR_X, F_BUS, T_BUS, branch_cols, BR_STATUS, SHIFT, TAP, BR_R_ASYM, \
-    BR_X_ASYM
+    BR_X_ASYM, BR_B_ASYM
 from pandapower.pypower.idx_bus import BASE_KV, BS, GS, BUS_TYPE
 from pandapower.pypower.idx_brch_sc import branch_cols_sc
 from pandapower.pypower.idx_bus_sc import C_MAX, C_MIN
@@ -285,13 +285,16 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
 
         # y0_k = 1 / z0_k #adding admittance for "pi" model
         if vector_group.lower() == "dyn":
-            buses_all = np.hstack([buses_all, lv_buses_ppc])
+            # buses_all = np.hstack([buses_all, lv_buses_ppc])
             if trafo_model == "pi":
-                y = y0_k * ppc["baseMVA"]  # pi model
+                y = y0_k  # * ppc["baseMVA"]  # pi model
             else:
-                y = (YAB + YBN).astype(complex) * ppc["baseMVA"]  # T model
-            gs_all = np.hstack([gs_all, y.real * in_service])
-            bs_all = np.hstack([bs_all, y.imag * in_service])
+                y = (YAB + YBN).astype(complex)  # * ppc["baseMVA"]  # T model
+            # in makeYbus B is multiplied by 1j and divided by 2, so here we multiply by 2 and divide by 1j
+            ppc["branch"][ppc_idx, BR_B_ASYM] = -2j * y * in_service
+            # todo: remove
+            # gs_all = np.hstack([gs_all, y.real * in_service])
+            # bs_all = np.hstack([bs_all, y.imag * in_service])
 
         elif vector_group.lower() == "ynd":
             buses_all = np.hstack([buses_all, hv_buses_ppc])
@@ -325,13 +328,18 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
             ppc["branch"][ppc_idx, BR_R] = zc.real
             ppc["branch"][ppc_idx, BR_X] = zc.imag
 
-            buses_all = np.hstack([buses_all, hv_buses_ppc])
-            gs_all = np.hstack([gs_all, YAN.real * in_service * ppc["baseMVA"] * tap_lv / tap_hv])
-            bs_all = np.hstack([bs_all, YAN.imag * in_service * ppc["baseMVA"] * tap_lv / tap_hv])
+            bf = YAN * in_service
+            bt = YBN * in_service
+            ppc["branch"][ppc_idx, BR_B] = -2j * bf  # tap stuff is taken care of in makeYbus  # todo test if true
+            ppc["branch"][ppc_idx, BR_B_ASYM] = -2j * (bt - bf)  # bt = BR_B + BR_B_ASYM
 
-            buses_all = np.hstack([buses_all, lv_buses_ppc])
-            gs_all = np.hstack([gs_all, YBN.real * in_service * ppc["baseMVA"]])
-            bs_all = np.hstack([bs_all, YBN.imag * in_service * ppc["baseMVA"]])
+            # buses_all = np.hstack([buses_all, hv_buses_ppc])
+            # gs_all = np.hstack([gs_all, YAN.real * in_service * ppc["baseMVA"] * tap_lv / tap_hv])
+            # bs_all = np.hstack([bs_all, YAN.imag * in_service * ppc["baseMVA"] * tap_lv / tap_hv])
+            #
+            # buses_all = np.hstack([buses_all, lv_buses_ppc])
+            # gs_all = np.hstack([gs_all, YBN.real * in_service * ppc["baseMVA"]])
+            # bs_all = np.hstack([bs_all, YBN.imag * in_service * ppc["baseMVA"]])
 
         elif vector_group.lower() == "yny":
             buses_all = np.hstack([buses_all, hv_buses_ppc])

@@ -505,7 +505,7 @@ def _calc_branch_currents_complex(net, ppci, bus_idx):
     n_bus = ppci["bus"].shape[0]
     fb = np.real(ppci["branch"][:, 0]).astype(np.int64)
     tb = np.real(ppci["branch"][:, 1]).astype(np.int64)
-    ppci["internal"]["baseV"] = ppci["bus"][fb, :][:, [BASE_KV]]  # shape issue
+    ppci["internal"]["baseV"] = ppci["bus"][:, BASE_KV]  # shape issue
 
     # branch = ppci["branch"]
     # offtap = np.flatnonzero(branch[:, TAP] != 1)
