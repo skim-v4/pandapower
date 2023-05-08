@@ -8,7 +8,7 @@ import warnings
 
 import numpy as np
 from scipy.sparse.linalg import inv as inv_sparse
-from scipy.linalg import inv
+from scipy.linalg import inv, LinAlgError
 
 from pandapower.pypower.idx_bus_sc import R_EQUIV, X_EQUIV
 from pandapower.pypower.idx_bus import BASE_KV
@@ -59,6 +59,21 @@ def _calc_zbus(net, ppci):
                 ppci["internal"]["Zbus"] = inv_sparse(Ybus).toarray()
         else:
             ppci["internal"]["Zbus"] = inv(Ybus.toarray())
+    except (LinAlgError, RuntimeError) as e:
+        # in some cases, particularly when the zero-sequence model only has 1 non-zero value in the admittance matrix,
+        # the inversion of the matrix will not work. If the "blocking" of zero-sequence current is represented by a big
+        # number, the zero values will be stored as small non-zero values - inversion will work fine but the results
+        # will be wrong. Alternatively, if the "blocking" behavior is represented by np.inf,
+        # the zero values will be properly set as zeros, but the inversion will fail for such a matrix
+        # because it is singular. However, the results in such a case will be obtained correctly later on
+        # if just we invert the single non-zero value - this is what we are doing here:
+        warnings.warn(f"Encountered singular matrix in _calc_zbus - will invert only the non-zero values of the "
+                      f"Ybus matrix. This is valid e.g. if there is only 1 branch in the grid, otherwise something is "
+                      f"wrong in the grid model and the results are incorrect - keep this in mind. ({e})")
+        Ybus = ppci["internal"]["Ybus"].toarray()
+        Zbus = np.zeros_like(Ybus, dtype=np.complex128)
+        np.divide(1, Ybus, where=Ybus != 0, out=Zbus)
+        ppci["internal"]["Zbus"] = Zbus
     except Exception as e:
         _clean_up(net, res=False)
         raise (e)

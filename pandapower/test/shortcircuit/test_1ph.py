@@ -551,7 +551,8 @@ def test_trafo_temp():
 
 def test_trafo_temp2():
     # vc = "Dyn"
-    vc = "YNyn"
+    # vc = "YNyn"
+    vc = "YNd"
     net = pp.create_empty_network(sn_mva=1)
     pp.create_bus(net, vn_kv=110.)
     pp.create_bus(net, vn_kv=20.)

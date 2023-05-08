@@ -166,7 +166,7 @@ def _calc_ikss_1ph(net, ppci_0, ppci_1, ppci_2, bus_idx):
     Zbus_1 = ppci_1["internal"]["Zbus"]
     Zbus_2 = ppci_2["internal"]["Zbus"]
 
-    V_ikss_0 = -ikss1 * Zbus_0[:, bus_idx] / 3
+    V_ikss_0 = 0 - ikss1 * Zbus_0[:, bus_idx] / 3  # initial value for zero-sequence voltage is 0
     V_ikss_0[np.abs(V_ikss_0) < 1e-10] = 0
     V_ikss_1 = V0 - ikss1 * Zbus_1[:, bus_idx] / 3 if valid_V else -ikss1 * Zbus_1[:, bus_idx] / 3
     V_ikss_1[np.abs(V_ikss_1) < 1e-10] = 0

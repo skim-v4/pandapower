@@ -124,11 +124,14 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
     ppc["branch"][f:t, F_BUS] = bus_lookup[hv_bus]
     ppc["branch"][f:t, T_BUS] = bus_lookup[lv_bus]
     buses_all, gs_all, bs_all = np.array([], dtype=np.int64), np.array([]), np.array([])
-    BIG_NUMBER = 1e20 * ppc["baseMVA"]
+    # BIG_NUMBER = 1e20 * ppc["baseMVA"]
+    BIG_NUMBER = np.complex128(np.inf)
     if mode == "sc":
         # Should be considered as connected for all in_service branches
-        ppc["branch"][f:t, BR_X] = BIG_NUMBER
+        # with np.complex128, we need just the real part of the complex number to be np.inf,
+        # and the imaginary part must be 0 - otherwise the result will be np.nan rather than 0:
         ppc["branch"][f:t, BR_R] = BIG_NUMBER
+        ppc["branch"][f:t, BR_X] = 0  # BIG_NUMBER
         ppc["branch"][f:t, BR_B] = 0
         ppc["branch"][f:t, BR_STATUS] = in_service
     else:
@@ -297,9 +300,9 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
             # bs_all = np.hstack([bs_all, y.imag * in_service])
 
         elif vector_group.lower() == "ynd":
-            buses_all = np.hstack([buses_all, hv_buses_ppc])
+            # buses_all = np.hstack([buses_all, hv_buses_ppc])
             if trafo_model == "pi":
-                y = y0_k * ppc["baseMVA"]  # pi model
+                y = y0_k  # * ppc["baseMVA"]  # pi model
                 # y = 1/0.99598 * 1 / (1/(y0_k * ppc["baseMVA"]) + 1/0.99598 * (1j * 3 * 22 /( (110 ** 2) / 1))) # pi
                 # y = 1/0.99598 * 1 / (1/(y0_k * ppc["baseMVA"]) + 1/0.99598 * (1j * 3 * 22 /( (110 ** 2) / 1))) # pi
 
@@ -308,19 +311,23 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
                 # y = 1 / z0_k_k # pi model
             else:
                 y = (YAB_BN + YAN).astype(complex) * ppc["baseMVA"]  # T model
-            gs_all = np.hstack([gs_all, y.real * in_service])
-            bs_all = np.hstack([bs_all, y.imag * in_service])
+            b = -2j * y * in_service
+            ppc["branch"][ppc_idx, BR_B] = b
+            ppc["branch"][ppc_idx, BR_B_ASYM] = -b  # "to" must be 0, abd b_to = b_from + b_asym
+            # gs_all = np.hstack([gs_all, y.real * in_service])
+            # bs_all = np.hstack([bs_all, y.imag * in_service])
 
         elif vector_group.lower() == "yyn":
-            buses_all = np.hstack([buses_all, lv_buses_ppc])
+            # buses_all = np.hstack([buses_all, lv_buses_ppc])
             if trafo_model == "pi":
                 y = 1/(z0_mag+z0_k).astype(complex) * ppc["baseMVA"]  # pi model
             else:
                 # y = (YAB_AN + YBN).astype(complex)  # T model
                 y = (YAB + YAB_BN + YBN).astype(complex) * ppc["baseMVA"]  # T model
+            ppc["branch"][ppc_idx, BR_B_ASYM] = -2j * y * in_service
 
-            gs_all = np.hstack([gs_all, y.real * in_service])
-            bs_all = np.hstack([bs_all, y.imag * in_service])
+            # gs_all = np.hstack([gs_all, y.real * in_service])
+            # bs_all = np.hstack([bs_all, y.imag * in_service])
 
         elif vector_group.lower() == "ynyn":
             ppc["branch"][ppc_idx, BR_STATUS] = in_service
@@ -330,7 +337,7 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
 
             bf = YAN * in_service
             bt = YBN * in_service
-            ppc["branch"][ppc_idx, BR_B] = -2j * bf  # tap stuff is taken care of in makeYbus  # todo test if true
+            ppc["branch"][ppc_idx, BR_B] = -2j * bf  # tap stuff is taken care of in makeYbus
             ppc["branch"][ppc_idx, BR_B_ASYM] = -2j * (bt - bf)  # bt = BR_B + BR_B_ASYM
 
             # buses_all = np.hstack([buses_all, hv_buses_ppc])

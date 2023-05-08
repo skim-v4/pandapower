@@ -142,11 +142,11 @@ def _get_trafo_1ph_results(net, v_abc_pu, i_abc_ka, s_abc_mva):
                 net.res_trafo_sc[f"ikss_{phase}_{side}_ka"] = np.abs(i_abc_ka[f:t, side_idx, phase_idx])
                 net.res_trafo_sc[f"ikss_{phase}_{side}_degree"] = np.angle(i_abc_ka[f:t, side_idx, phase_idx], deg=True)
 
-            for side_idx, side in enumerate(("from", "to")):
+            for side_idx, side in enumerate(("hv", "lv")):
                 net.res_trafo_sc[f"p_{phase}_{side}_mw"] = s_abc_mva[f:t, side_idx, phase_idx].real
                 net.res_trafo_sc[f"q_{phase}_{side}_mvar"] = s_abc_mva[f:t, side_idx, phase_idx].imag
 
-            for side_idx, side in enumerate(("from", "to")):
+            for side_idx, side in enumerate(("hv", "lv")):
                 net.res_trafo_sc[f"vm_{phase}_{side}_pu"] = np.abs(v_abc_pu[f:t, side_idx, phase_idx])
                 net.res_trafo_sc[f"va_{phase}_{side}_degree"] = np.angle(v_abc_pu[f:t, side_idx, phase_idx], deg=True)
 
