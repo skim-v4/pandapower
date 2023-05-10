@@ -568,7 +568,9 @@ def test_trafo_temp2():
                                           vkr0_percent=0.5, vector_group=vc,
                                           mag0_percent=100, mag0_rx=0, si0_hv_partial=0.5)
 
-    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=1)
+    pp.runpp(net)
+
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=1, use_pre_fault_voltage=True)
 
 
 def test_trafo():

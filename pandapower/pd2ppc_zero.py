@@ -236,8 +236,9 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
 
         if mode == "sc":  # or trafo_model == "pi":
             cmax = net._ppc["bus"][lv_buses_ppc, C_MAX]
-            kt = _transformer_correction_factor(trafos, vk_percent, vkr_percent, sn_trafo_mva, cmax)
-            z0_k *= kt
+            if not net._options["use_pre_fault_voltage"]:
+                kt = _transformer_correction_factor(trafos, vk_percent, vkr_percent, sn_trafo_mva, cmax)
+                z0_k *= kt
 
             # different formula must be applied for power station unit transformers:
             # z_0THV is for power station block unit transformer -> page 20 of IEC60909-4:2021 (example 4.4.2):
@@ -289,12 +290,15 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
         # y0_k = 1 / z0_k #adding admittance for "pi" model
         if vector_group.lower() == "dyn":
             # buses_all = np.hstack([buses_all, lv_buses_ppc])
-            if trafo_model == "pi":
-                y = y0_k  # * ppc["baseMVA"]  # pi model
-            else:
-                y = (YAB + YBN).astype(complex)  # * ppc["baseMVA"]  # T model
+            # always using modeling as for trafo_model = "pi" works
+
+            # if trafo_model == "pi":
+            #     y = y0_k  # * ppc["baseMVA"]  # pi model
+            # else:
+            #     y = (YAB + YBN).astype(complex)  # * ppc["baseMVA"]  # T model
+
             # in makeYbus B is multiplied by 1j and divided by 2, so here we multiply by 2 and divide by 1j
-            ppc["branch"][ppc_idx, BR_B_ASYM] = -2j * y * in_service
+            ppc["branch"][ppc_idx, BR_B_ASYM] = -2j * y0_k * in_service
             # todo: remove
             # gs_all = np.hstack([gs_all, y.real * in_service])
             # bs_all = np.hstack([bs_all, y.imag * in_service])

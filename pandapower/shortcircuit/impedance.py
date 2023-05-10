@@ -8,7 +8,7 @@ import warnings
 
 import numpy as np
 from scipy.sparse.linalg import inv as inv_sparse
-from scipy.linalg import inv, LinAlgError
+from scipy.linalg import inv, pinv, LinAlgError
 
 from pandapower.pypower.idx_bus_sc import R_EQUIV, X_EQUIV
 from pandapower.pypower.idx_bus import BASE_KV
@@ -70,10 +70,11 @@ def _calc_zbus(net, ppci):
         warnings.warn(f"Encountered singular matrix in _calc_zbus - will invert only the non-zero values of the "
                       f"Ybus matrix. This is valid e.g. if there is only 1 branch in the grid, otherwise something is "
                       f"wrong in the grid model and the results are incorrect - keep this in mind. ({e})")
-        Ybus = ppci["internal"]["Ybus"].toarray()
-        Zbus = np.zeros_like(Ybus, dtype=np.complex128)
-        np.divide(1, Ybus, where=Ybus != 0, out=Zbus)
-        ppci["internal"]["Zbus"] = Zbus
+        # Ybus = ppci["internal"]["Ybus"].toarray()
+        # Zbus = np.zeros_like(Ybus, dtype=np.complex128)
+        # np.divide(1, Ybus, where=Ybus != 0, out=Zbus)
+        # ppci["internal"]["Zbus"] = Zbus
+        ppci["internal"]["Zbus"] = pinv(Ybus.toarray())
     except Exception as e:
         _clean_up(net, res=False)
         raise (e)
