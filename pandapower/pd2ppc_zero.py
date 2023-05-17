@@ -124,14 +124,15 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
     ppc["branch"][f:t, F_BUS] = bus_lookup[hv_bus]
     ppc["branch"][f:t, T_BUS] = bus_lookup[lv_bus]
     # buses_all, gs_all, bs_all = np.array([], dtype=np.int64), np.array([]), np.array([])
-    # BIG_NUMBER = 1e20 * ppc["baseMVA"]
-    BIG_NUMBER = np.complex128(np.inf)
+    BIG_NUMBER = 1e20 * ppc["baseMVA"]
+    # BIG_NUMBER = np.complex128(np.inf)
     if mode == "sc":
         # Should be considered as connected for all in_service branches
         # with np.complex128, we need just the real part of the complex number to be np.inf,
         # and the imaginary part must be 0 - otherwise the result will be np.nan rather than 0:
         ppc["branch"][f:t, BR_R] = BIG_NUMBER
-        ppc["branch"][f:t, BR_X] = 0  # BIG_NUMBER
+        ppc["branch"][f:t, BR_X] = BIG_NUMBER
+        # ppc["branch"][f:t, BR_X] = 0
         ppc["branch"][f:t, BR_B] = 0
         ppc["branch"][f:t, BR_STATUS] = in_service
     else:

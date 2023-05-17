@@ -70,11 +70,13 @@ def _calc_zbus(net, ppci):
         warnings.warn(f"Encountered singular matrix in _calc_zbus - will invert only the non-zero values of the "
                       f"Ybus matrix. This is valid e.g. if there is only 1 branch in the grid, otherwise something is "
                       f"wrong in the grid model and the results are incorrect - keep this in mind. ({e})")
-        # Ybus = ppci["internal"]["Ybus"].toarray()
+        Ybus = ppci["internal"]["Ybus"].toarray()
         # Zbus = np.zeros_like(Ybus, dtype=np.complex128)
         # np.divide(1, Ybus, where=Ybus != 0, out=Zbus)
         # ppci["internal"]["Zbus"] = Zbus
-        ppci["internal"]["Zbus"] = pinv(Ybus.toarray())
+        Zbus = pinv(Ybus)
+        Zbus[-1,-1] = 1e20
+        ppci["internal"]["Zbus"] = Zbus
     except Exception as e:
         _clean_up(net, res=False)
         raise (e)
