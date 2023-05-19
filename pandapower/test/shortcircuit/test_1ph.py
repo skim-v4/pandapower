@@ -549,10 +549,31 @@ def test_trafo_temp():
     sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=2)
 
 
-def test_trafo_temp2():
-    # vc = "Dyn"
-    # vc = "YNyn"
-    vc = "YNd"
+def test_trafo_1ph():
+    res_bus = {"YNd": {0: [6.380943, 0.399053, 6.214775, 1.324394, 13.243945],
+                       1: [0, np.inf, np.inf, 0.056495, 0.844448]},
+               "Dyn": {0: [5.248639, 1.324394, 13.243945, 1.324394, 13.243945],
+                       1: [18.328769, 0.012713, 0.386279, 0.056495, 0.844448]}}
+
+    res_trafo = {"YNd": {0: [1.132975, 93.535632, 0., 0., 0., 0., 0., 0., 0., 0., 0.208569, 1.650563, 1.132975,
+                             93.535632, 0., 0., -67.674057, 26.725911, 0., 0., 1.01121, -108.014475, 0.9613, -96.225276,
+                             1.132975, 93.535632, 0., 0., 69.155042, 18.271669, 0., 0., 0.994087, 108.335724, 0.955328,
+                             96.264346],
+                         1: [0., 0., 0., 0., 0., 0., 0., 0., 1.1, -0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                             1.1, -120., 1.905256, -150., 0., 0., 0., 0., 0., 0., 0., 0., 1.1, 120., 1.905256, 150.]
+                         },
+                 "Dyn": {0: [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.366667, 0., 0., 0., 0., 0., 0., 0., 0., 0., 1.1,
+                             -120., 0.970109, -100.893395, 0., 0., 0., 0., 0., 0., 0., 0., 1.1, 120., 0.970109,
+                             100.893395],
+                         1: [2.221669, -86.533547, 18.328769, 93.466453, 2.847334, 89.550826, 0., 0., 0.635006,
+                             1.645305, 0., 0., 1.110835, 93.466453, 0., 0., -66.370695, 26.451227, 0., 0., 1.012757,
+                             -108.262695, 1.00882, -107.694556, 1.110835, 93.466453, 0., 0., 67.794362, 18.324186, 0.,
+                             0., 0.995459, 108.591552, 0.992704, 107.991556]
+                         }
+                 }
+
+    vector_group = "YNd"
+    fault_bus = 0
     net = pp.create_empty_network(sn_mva=1)
     pp.create_bus(net, vn_kv=110.)
     pp.create_bus(net, vn_kv=20.)
@@ -565,12 +586,45 @@ def test_trafo_temp2():
                                           pfe_kw=10, i0_percent=0.1,
                                           vn_hv_kv=110., vn_lv_kv=20, vk_percent=16, vkr_percent=0.5,
                                           pt_percent=12, vk0_percent=15.2,
-                                          vkr0_percent=0.5, vector_group=vc,
+                                          vkr0_percent=0.5, vector_group=vector_group,
                                           mag0_percent=100, mag0_rx=0, si0_hv_partial=0.5)
 
-    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=1e-6)
+    assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=5e-6)
 
-    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=1, use_pre_fault_voltage=True)
+    fault_bus = 1
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=1e-6)
+    assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=1e-6)
+
+    vector_group = "Dyn"
+    net.trafo.vector_group = vector_group
+    fault_bus = 0
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=1e-6)
+    assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=1e-6)
+
+    fault_bus = 1
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=1e-6)
+    assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=7e-6)
+
+    # vector_group = "Yyn"
+    # net.trafo.vector_group = vector_group
+    # fault_bus = 0
+    # sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    # assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=1e-6)
+    # assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=1e-6)
+    #
+    # fault_bus = 1
+    # sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    # assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=1e-6)
+    # assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=7e-6)
+
+    # todo YNyn
+
+    # pp.runpp(net)
 
 
 def test_trafo():
