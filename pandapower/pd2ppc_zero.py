@@ -247,7 +247,9 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
             # todo: check if sn_mva must be included here?
             vkx0_percent = np.sqrt(np.square(vk0_percent) - np.square(vkr0_percent))
             z_0THV = (vkr0_percent / 100 + 1j * vkx0_percent / 100) * (np.square(vn_trafo_hv) / sn_trafo_mva) / parallel
-            z0_k_psu = (z_0THV * k_st_tr + 3j * z_n_ohm) / ((vn_bus_hv ** 2) / net.sn_mva)
+            # todo clarify
+            # z0_k_psu = (z_0THV * k_st_tr + 3j * z_n_ohm) / ((vn_bus_hv ** 2) / net.sn_mva)
+            z0_k_psu = (z_0THV * k_st_tr + 3j * z_n_ohm) / ((vn_trafo_hv ** 2) / net.sn_mva)
             z0_k = np.where(power_station_unit, z0_k_psu, z0_k)
 
         y0_k = 1 / z0_k  # adding admittance for "pi" model
