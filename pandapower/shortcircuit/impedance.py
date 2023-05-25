@@ -45,6 +45,15 @@ def _calc_ybus(ppci):
     Ybus, Yf, Yt = makeYbus(ppci["baseMVA"], ppci["bus"], ppci["branch"])
     if np.isnan(Ybus.data).any():
         raise ValueError("nan value detected in Ybus matrix - check calculation parameters for nan values")
+
+    nonzero = Ybus.nonzero()
+    nonzero_mask = np.array(abs(Ybus[nonzero]) <= (10 / (BIG_NUMBER * ppci["baseMVA"])))[0]
+    if len(nonzero_mask) > 0:
+        rows = nonzero[0][nonzero_mask]
+        cols = nonzero[1][nonzero_mask]
+        Ybus[rows[rows != cols], cols[rows != cols]] = 0
+        Ybus.eliminate_zeros()
+
     ppci["internal"]["Yf"] = Yf
     ppci["internal"]["Yt"] = Yt
     ppci["internal"]["Ybus"] = Ybus
@@ -53,13 +62,6 @@ def _calc_ybus(ppci):
 def _calc_zbus(net, ppci):
     try:
         Ybus = ppci["internal"]["Ybus"]
-        nonzero = Ybus.nonzero()
-        nonzero_mask = np.array(abs(Ybus[nonzero]) <= (10 / (BIG_NUMBER * ppci["baseMVA"])))[0]
-        if len(nonzero_mask) > 0:
-            rows = nonzero[0][nonzero_mask]
-            cols = nonzero[1][nonzero_mask]
-            Ybus[rows[rows != cols], cols[rows != cols]] = 0
-            Ybus.eliminate_zeros()
         sparsity = Ybus.nnz / Ybus.shape[0]**2
         if sparsity < 0.002:
             with warnings.catch_warnings():

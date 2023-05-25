@@ -161,16 +161,30 @@ def _calc_ikss_1ph(net, ppci_0, ppci_1, ppci_2, bus_idx):
 
     ikss1 = 3 * V0[bus_idx, np.arange(n_sc_bus)] / z_equiv
 
-    # todo implement LU factorization
-    Zbus_0 = ppci_0["internal"]["Zbus"]
-    Zbus_1 = ppci_1["internal"]["Zbus"]
-    Zbus_2 = ppci_2["internal"]["Zbus"]
+    if net["_options"]["inverse_y"]:
+        Zbus_0 = ppci_0["internal"]["Zbus"]
+        Zbus_1 = ppci_1["internal"]["Zbus"]
+        Zbus_2 = ppci_2["internal"]["Zbus"]
 
-    V_ikss_0 = 0 - ikss1 * Zbus_0[:, bus_idx] / 3  # initial value for zero-sequence voltage is 0
+        V_ikss_0 = 0 - ikss1 * Zbus_0[:, bus_idx] / 3  # initial value for zero-sequence voltage is 0
+        V_ikss_1 = V0 - ikss1 * Zbus_1[:, bus_idx] / 3 if valid_V else 0 - ikss1 * Zbus_1[:, bus_idx] / 3
+        V_ikss_2 = 0 - ikss1 * Zbus_2[:, bus_idx] / 3  # initial value for negative-sequence voltage is 0
+    else:
+        ybus_fact_0 = ppci_0["internal"]["ybus_fact"]
+        ybus_fact_1 = ppci_1["internal"]["ybus_fact"]
+        ybus_fact_2 = ppci_2["internal"]["ybus_fact"]
+        V_ikss_0 = np.zeros((n_bus, n_sc_bus), dtype=np.complex128)
+        V_ikss_1 = np.zeros((n_bus, n_sc_bus), dtype=np.complex128)
+        V_ikss_2 = np.zeros((n_bus, n_sc_bus), dtype=np.complex128)
+        for ix, b in enumerate(bus_idx):
+            ikss = np.zeros((n_bus, 1), dtype=np.complex128)
+            ikss[b] = ikss1[ix]
+            V_ikss_0[:, [ix]] = 0 - ybus_fact_0(ikss) / 3
+            V_ikss_1[:, [ix]] = V0[:, [ix]] - ybus_fact_1(ikss) / 3 if valid_V else 0 - ybus_fact_1(ikss) / 3
+            V_ikss_2[:, [ix]] = 0 - ybus_fact_2(ikss) / 3
+
     V_ikss_0[np.abs(V_ikss_0) < 1e-10] = 0
-    V_ikss_1 = V0 - ikss1 * Zbus_1[:, bus_idx] / 3 if valid_V else -ikss1 * Zbus_1[:, bus_idx] / 3
     V_ikss_1[np.abs(V_ikss_1) < 1e-10] = 0
-    V_ikss_2 = -ikss1 * Zbus_2[:, bus_idx] / 3 if valid_V else -ikss1 * Zbus_2[:, bus_idx] / 3
     V_ikss_2[np.abs(V_ikss_2) < 1e-10] = 0
 
     # ikss1 = -Ybus.dot(V_ikss) / baseI.reshape(-1, 1)

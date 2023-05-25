@@ -113,7 +113,8 @@ def test_1ph_shortcircuit_3w():
             assert np.allclose(net.res_bus_sc.ikss_ka.at[bus], net2.res_bus_sc.ikss_ka.at[bus], rtol=0, atol=1e-9)
 
 
-def test_1ph_shortcircuit_min():
+@pytest.mark.parametrize("inverse_y", (True, False), ids=("Inverse Y", "LU factorization"))
+def test_1ph_shortcircuit_min(inverse_y):
     results = {
                  "Yy":  [0.52209346201, 0.66632662571, 0.66756160176, 0.72517293174]
                 ,"Yyn": [0.52209346201, 2.4135757259, 1.545054139, 0.99373917957]
@@ -126,40 +127,39 @@ def test_1ph_shortcircuit_min():
                 ,"Dd":  [0.52209346201, 0.66632662571, 0.66756160176, 0.72517293174]
                }
 
-    for inv_y in (False, True):
-        for vc, result in results.items():
-            net = pp.create_empty_network(sn_mva=16)
-            add_network(net, vc)
-            try:
-                sc.calc_sc(net, fault="1ph", case="min", inverse_y=inv_y)
-            except Exception as e:
-                raise UserWarning(f"{str(e)}: Did not converge after adding transformer with vector group {vc}")
-            check_results(net, vc, result)
+    for vc, result in results.items():
+        net = pp.create_empty_network(sn_mva=16)
+        add_network(net, vc)
+        try:
+            sc.calc_sc(net, fault="1ph", case="min", inverse_y=inverse_y)
+        except Exception as e:
+            raise UserWarning(f"{str(e)}: Did not converge after adding transformer with vector group {vc}")
+        check_results(net, vc, result)
 
 
-def test_iec60909_example_4():
+@pytest.mark.parametrize("inverse_y", (True, False), ids=("Inverse Y", "LU factorization"))
+def test_iec60909_example_4(inverse_y):
     file = os.path.join(pp.pp_dir, "test", "test_files", "IEC60909-4_example.json")
     net = pp.from_json(file)
-    for inv_y in (False, True):
-        sc.calc_sc(net, fault="1ph", inverse_y=inv_y)
-        assert np.isclose(net.res_bus_sc[net.bus.name=="Q"].ikss_ka.values[0], 10.05957231)
-        assert np.isclose(net.res_bus_sc[net.bus.name=="T2LV"].ikss_ka.values[0], 34.467353142)
-        assert np.isclose(net.res_bus_sc[net.bus.name=="F1"].ikss_ka.values[0], 35.53066312)
-        assert np.isclose(net.res_bus_sc[net.bus.name=="F2"].ikss_ka.values[0], 34.89135137)
-        assert np.isclose(net.res_bus_sc[net.bus.name=="F3"].ikss_ka.values[0], 5.0321033105)
-        assert np.isclose(net.res_bus_sc[net.bus.name=="Cable/Line IC"].ikss_ka.values[0], 16.362586813)
+    sc.calc_sc(net, fault="1ph", inverse_y=inverse_y)
+    assert np.isclose(net.res_bus_sc[net.bus.name == "Q"].ikss_ka.values[0], 10.05957231)
+    assert np.isclose(net.res_bus_sc[net.bus.name == "T2LV"].ikss_ka.values[0], 34.467353142)
+    assert np.isclose(net.res_bus_sc[net.bus.name == "F1"].ikss_ka.values[0], 35.53066312)
+    assert np.isclose(net.res_bus_sc[net.bus.name == "F2"].ikss_ka.values[0], 34.89135137)
+    assert np.isclose(net.res_bus_sc[net.bus.name == "F3"].ikss_ka.values[0], 5.0321033105)
+    assert np.isclose(net.res_bus_sc[net.bus.name == "Cable/Line IC"].ikss_ka.values[0], 16.362586813)
 
 
-def test_iec60909_example_4_bus_selection():
+@pytest.mark.parametrize("inverse_y", (True, False), ids=("Inverse Y", "LU factorization"))
+def test_iec60909_example_4_bus_selection(inverse_y):
     file = os.path.join(pp.pp_dir, "test", "test_files", "IEC60909-4_example.json")
     net = pp.from_json(file)
-    for inv_y in (False, True):
-        sc.calc_sc(net, fault="1ph", inverse_y=inv_y,
-                   bus=net.bus[net.bus.name.isin(("F1", "F2"))].index)
-        assert np.isclose(net.res_bus_sc.at[net.bus[net.bus.name=="F1"].index[0],
-                                            "ikss_ka"], 35.53066312)
-        assert np.isclose(net.res_bus_sc.at[net.bus[net.bus.name=="F2"].index[0],
-                                            "ikss_ka"], 34.89135137)
+    sc.calc_sc(net, fault="1ph", inverse_y=inverse_y,
+               bus=net.bus[net.bus.name.isin(("F1", "F2"))].index)
+    assert np.isclose(net.res_bus_sc.at[net.bus[net.bus.name == "F1"].index[0],
+                                        "ikss_ka"], 35.53066312)
+    assert np.isclose(net.res_bus_sc.at[net.bus[net.bus.name == "F2"].index[0],
+                                        "ikss_ka"], 34.89135137)
 
 
 @pytest.mark.parametrize("inverse_y", (True, False), ids=("Inverse Y", "LU factorization"))
@@ -549,7 +549,8 @@ def test_trafo_temp():
     sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=2)
 
 
-def test_trafo_1ph():
+@pytest.mark.parametrize("inverse_y", (True, False), ids=("Inverse Y", "LU factorization"))
+def test_trafo_1ph(inverse_y):
     res_bus = {"YNd": {0: [6.380943, 0.399053, 6.214775, 1.324394, 13.243945],
                        1: [0, np.inf, np.inf, 0.056495, 0.844448]},
                "Dyn": {0: [5.248639, 1.324394, 13.243945, 1.324394, 13.243945],
@@ -575,12 +576,14 @@ def test_trafo_1ph():
     def _check_result(vector_group, tol=(1e-6, 1e-6, 1e-6, 1e-6)):
         net.trafo.vector_group = vector_group
         fault_bus = 0
-        sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+        sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False,
+                   inverse_y=inverse_y)
         assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=tol[0])
         assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=tol[1])
 
         fault_bus = 1
-        sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+        sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False,
+                   inverse_y=inverse_y)
         assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=tol[2])
         assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=tol[3])
 
