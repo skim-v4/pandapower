@@ -248,6 +248,11 @@ def _current_source_current(net, ppci, bus_idx):
     else:
         sgen_angle = None
 
+    # at this point, we know that there are sgen elements in the grid
+    if fault == "1ph":
+        warnings.warn("Contribution of static generators not implemented for fault = 1ph, "
+                      "sgen contributions are ignored.")
+
     baseI = ppci["internal"]["baseI"]
     sgen_buses = sgen.bus.values
     sgen_buses_ppc = bus_lookup[sgen_buses]
