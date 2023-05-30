@@ -720,5 +720,42 @@ def test_sc_1ph_impedance():
     assert np.allclose(net.res_bus_sc.xk_ohm, [13.2439445, 137.5549268], rtol=0, atol=1e-5)
 
 
+def test_mv_oberrhein():
+    net = pp.networks.mv_oberrhein()
+    net.ext_grid["s_sc_max_mva"] = 100
+    net.ext_grid["s_sc_min_mva"] = 100
+    net.ext_grid["rx_max"] = 0.1  # R/X ratio
+    net.ext_grid["rx_min"] = 0.1  # R/X ratio
+    net.ext_grid["r0x0_max"] = 0.1
+    net.ext_grid["x0x_max"] = 1.0  # 0-sequence/1-sequence ratio
+    #
+    # sgen
+    #
+    net.sgen['k'] = 1.0  # 1.3 is a better value. Contribution increase from an sgen in short-circuit conditions.
+    # net.sgen['sn_mva'] = 2.
+    # net.sgen['p_mw'] = 2.
+    net.sgen['kappa'] = net.sgen['k']
+    #
+    # line
+    #
+    net.line["endtemp_degree"] = 20
+    net.line["r0_ohm_per_km"] = 0.16
+    net.line["x0_ohm_per_km"] = 0.12
+    net.line["c0_nf_per_km"] = 280
+    #
+    # trafo
+    #
+    # D stands for "delta", Y for "Wye" (star), "n" for neutral (ground). Relevant for single-phase to ground only
+    net.trafo["vector_group"] = 'Dyn'
+    net.trafo["vk0_percent"] = net.trafo["vk_percent"]  # short circuit voltage, positive sequence or zero-sequence
+    net.trafo["vkr0_percent"] = net.trafo["vkr_percent"]  # real part of zero sequence relative short-circuit voltage
+    net.trafo["mag0_percent"] = 100  # ratio between magnetizing and short circuit impedance (zero sequence)
+    net.trafo["mag0_rx"] = 0  # zero sequence magnetizing r/x ratio
+    net.trafo["si0_hv_partial"] = 0.9  # zero sequence short circuit impedance distribution in hv side
+
+    pp.runpp(net)
+    sc.calc_sc(net, fault='1ph', case="max", bus=33, branch_results=True, use_pre_fault_voltage=True)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

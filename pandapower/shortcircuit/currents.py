@@ -214,7 +214,9 @@ def _calc_ikss_1ph(net, ppci_0, ppci_1, ppci_2, bus_idx):
     ppci_2["internal"]["V_ikss"] = V_ikss_2
 
     # todo check how sgen is considered for ppci_0, ppci_2
+    _current_source_current(net, ppci_0, bus_idx)
     _current_source_current(net, ppci_1, bus_idx)
+    _current_source_current(net, ppci_2, bus_idx)
 
 
 def _current_source_current(net, ppci, bus_idx):
