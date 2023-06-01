@@ -177,30 +177,29 @@ def _get_bus_results(net, ppc_0, ppc_1, ppc_2, bus):
     bus_lookup = net._pd2ppc_lookups["bus"]
     ppc_index = bus_lookup[net.bus.index]
 
+    ppc_sequence = {0: ppc_0, 1: ppc_1, 2: ppc_2, "": ppc_1}
     if net["_options"]["fault"] == "1ph":
         net.res_bus_sc["ikss_ka"] = ppc_0["bus"][ppc_index, IKSS1] + ppc_1["bus"][ppc_index, IKSS2]
-        net.res_bus_sc["rk0_ohm"] = ppc_0["bus"][ppc_index, R_EQUIV_OHM]
-        net.res_bus_sc["xk0_ohm"] = ppc_0["bus"][ppc_index, X_EQUIV_OHM]
-        # in trafo3w, we add very high numbers (1e10) as impedances to block current
-        # here, we need to replace such high values by np.inf
-        baseZ = ppc_0["bus"][ppc_index, BASE_KV] ** 2 / ppc_0["baseMVA"]
-        net.res_bus_sc["xk0_ohm"].loc[net.res_bus_sc["xk0_ohm"]/baseZ > 1e9] = np.inf
-        net.res_bus_sc["rk0_ohm"].loc[net.res_bus_sc["rk0_ohm"]/baseZ > 1e9] = np.inf
+        # todo: implement SKSS for "1ph"
+        # net.res_bus_sc["skss_mw"] = ppc_0["bus"][ppc_index, SKSS]
+        sequence_relevant = range(3)
     else:
         net.res_bus_sc["ikss_ka"] = ppc_1["bus"][ppc_index, IKSS1] + ppc_1["bus"][ppc_index, IKSS2]
         net.res_bus_sc["skss_mw"] = ppc_1["bus"][ppc_index, SKSS]
+        sequence_relevant = ("",)
+    for sequence in sequence_relevant:
+        ppc_s = ppc_sequence[sequence]
+        net.res_bus_sc[f"rk{sequence}_ohm"] = ppc_s["bus"][ppc_index, R_EQUIV_OHM]
+        net.res_bus_sc[f"xk{sequence}_ohm"] = ppc_s["bus"][ppc_index, X_EQUIV_OHM]
+        # in trafo3w, we add very high numbers (1e10) as impedances to block current
+        # here, we need to replace such high values by np.inf
+        baseZ = ppc_s["bus"][ppc_index, BASE_KV] ** 2 / ppc_s["baseMVA"]
+        net.res_bus_sc[f"xk{sequence}_ohm"].loc[net.res_bus_sc[f"xk{sequence}_ohm"] / baseZ > 1e9] = np.inf
+        net.res_bus_sc[f"rk{sequence}_ohm"].loc[net.res_bus_sc[f"rk{sequence}_ohm"] / baseZ > 1e9] = np.inf
     if net._options["ip"]:
         net.res_bus_sc["ip_ka"] = ppc_1["bus"][ppc_index, IP]
     if net._options["ith"]:
         net.res_bus_sc["ith_ka"] = ppc_1["bus"][ppc_index, ITH]
-
-    # Export also equivalent rk, xk on the calculated bus
-    net.res_bus_sc["rk_ohm"] = ppc_1["bus"][ppc_index, R_EQUIV_OHM]
-    net.res_bus_sc["xk_ohm"] = ppc_1["bus"][ppc_index, X_EQUIV_OHM]
-    # if for some reason (e.g. contribution of ext_grid set close to 0) we used very high values for rk, xk, we replace them by np.inf
-    baseZ = ppc_1["bus"][ppc_index, BASE_KV] ** 2 / ppc_1["baseMVA"]
-    net.res_bus_sc["rk_ohm"].loc[net.res_bus_sc["rk_ohm"] / baseZ > 1e9] = np.inf
-    net.res_bus_sc["xk_ohm"].loc[net.res_bus_sc["xk_ohm"] / baseZ > 1e9] = np.inf
 
     net.res_bus_sc = net.res_bus_sc.loc[bus, :]
 

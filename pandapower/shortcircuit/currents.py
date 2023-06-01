@@ -214,12 +214,12 @@ def _calc_ikss_1ph(net, ppci_0, ppci_1, ppci_2, bus_idx):
     ppci_2["internal"]["V_ikss"] = V_ikss_2
 
     # todo check how sgen is considered for ppci_0, ppci_2
-    _current_source_current(net, ppci_0, bus_idx)
-    _current_source_current(net, ppci_1, bus_idx)
-    _current_source_current(net, ppci_2, bus_idx)
+    _current_source_current(net, ppci_0, bus_idx, 0)
+    _current_source_current(net, ppci_1, bus_idx, 1)
+    _current_source_current(net, ppci_2, bus_idx, 2)
 
 
-def _current_source_current(net, ppci, bus_idx):
+def _current_source_current(net, ppci, bus_idx, sequence=1):
     case = net._options["case"]
     fault_impedance = net._options["fault_impedance"]
     ppci["bus"][:, IKCV] = 0
@@ -227,7 +227,7 @@ def _current_source_current(net, ppci, bus_idx):
     ppci["bus"][:, IKSS2] = 0
     type_c = net._options["use_pre_fault_voltage"]
     # sgen current source contribution only for Type A and case "max" or type C:
-    if case != "max" and not type_c:
+    if case != "max" and not type_c or sequence != 1:
         return
 
     bus_lookup = net["_pd2ppc_lookups"]["bus"]
@@ -247,11 +247,6 @@ def _current_source_current(net, ppci, bus_idx):
         sgen_angle = np.deg2rad(sgen.current_angle_degree.values)
     else:
         sgen_angle = None
-
-    # at this point, we know that there are sgen elements in the grid
-    if fault == "1ph":
-        warnings.warn("Contribution of static generators not implemented for fault = 1ph, "
-                      "sgen contributions are ignored.")
 
     baseI = ppci["internal"]["baseI"]
     sgen_buses = sgen.bus.values
@@ -279,7 +274,7 @@ def _current_source_current(net, ppci, bus_idx):
         i_sgen_pu = (sgen.sn_mva.values / net.sn_mva * sgen.k.values)
         extra_angle = 0
 
-    if sgen_angle is not None and fault == "3ph":
+    if sgen_angle is not None and (fault == "3ph" or fault == "1ph" and type_c):
         i_sgen_pu = i_sgen_pu * np.exp(sgen_angle * 1j)
     # if case == "min":
     #     i_sgen_pu *= 0
@@ -287,26 +282,26 @@ def _current_source_current(net, ppci, bus_idx):
     buses, ikcv_pu, _ = _sum_by_group(sgen_buses_ppc, i_sgen_pu, i_sgen_pu)
     ikcv_pu = ikcv_pu.flatten()
     ppci["bus"][buses, [IKCV]] = ikcv_pu if sgen_angle is None else np.abs(ikcv_pu)
-    if sgen_angle is not None and fault == "3ph":
+    if sgen_angle is not None and (fault == "3ph" or fault == "1ph" and type_c):
         ppci["bus"][buses, PHI_IKCV_DEGREE] = np.angle(ikcv_pu, deg=True)
 
     if net["_options"]["inverse_y"]:
         Zbus = ppci["internal"]["Zbus"]
         diagZ = np.diag(Zbus).copy()  # here diagZ is not writeable
-        if sgen_angle is None and fault == "3ph":
+        if sgen_angle is None and (fault == "3ph" or fault == "1ph" and type_c):
             ppci["bus"][buses, PHI_IKCV_DEGREE] = -np.angle(diagZ[buses], deg=True) + extra_angle
         diagZ[bus_idx] += fault_impedance
         i_kss_2 = 1 / diagZ * np.dot(Zbus, ppci["bus"][:, IKCV] * np.exp(np.deg2rad(ppci["bus"][:, PHI_IKCV_DEGREE]) * 1j))
     else:
         ybus_fact = ppci["internal"]["ybus_fact"]
         diagZ = _calc_zbus_diag(net, ppci)
-        if sgen_angle is None and fault == "3ph":
+        if sgen_angle is None and (fault == "3ph" or fault == "1ph" and type_c):
             ppci["bus"][buses, PHI_IKCV_DEGREE] = -np.angle(diagZ[buses], deg=True) + extra_angle
         diagZ[bus_idx] += fault_impedance
         i_kss_2 = ybus_fact(ppci["bus"][:, IKCV] * np.exp(np.deg2rad(ppci["bus"][:, PHI_IKCV_DEGREE]) * 1j)) / diagZ
 
     ppci["bus"][:, IKSS2] = np.abs(i_kss_2 / baseI)
-    ppci["bus"][:, PHI_IKSS2_DEGREE] = np.angle(i_kss_2, deg=True) if fault == "3ph" else 0
+    ppci["bus"][:, PHI_IKSS2_DEGREE] = np.angle(i_kss_2, deg=True) if (fault == "3ph" or fault == "1ph" and type_c) else 0
     ppci["bus"][buses, IKCV] /= baseI[buses]
 
 

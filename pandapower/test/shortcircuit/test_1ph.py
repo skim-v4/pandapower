@@ -461,8 +461,8 @@ def test_1ph_sn_mva_ext_grid():
     res = {'ikss_ka': 5.2486388108147795,
            'rk0_ohm': 1.3243945001694957,
            'xk0_ohm': 13.243945001694957,
-           'rk_ohm': 1.3243945001694957,
-           'xk_ohm': 13.243945001694957}
+           'rk1_ohm': 1.3243945001694957,
+           'xk1_ohm': 13.243945001694957}
 
     for var in res.keys():
         assert np.allclose(net1.res_bus_sc[var], net2.res_bus_sc[var], atol=1e-6, rtol=0)
@@ -551,10 +551,10 @@ def test_trafo_temp():
 
 @pytest.mark.parametrize("inverse_y", (True, False), ids=("Inverse Y", "LU factorization"))
 def test_trafo_1ph(inverse_y):
-    res_bus = {"YNd": {0: [6.380943, 0.399053, 6.214775, 1.324394, 13.243945],
-                       1: [0, np.inf, np.inf, 0.056495, 0.844448]},
-               "Dyn": {0: [5.248639, 1.324394, 13.243945, 1.324394, 13.243945],
-                       1: [18.328769, 0.012713, 0.386279, 0.056495, 0.844448]}}
+    res_bus = {"YNd": {0: [6.380943, 0.399053, 6.214775, 1.324394, 13.243945, 1.324394, 13.243945],
+                       1: [0, np.inf, np.inf, 0.056495, 0.844448, 0.056495, 0.844448]},
+               "Dyn": {0: [5.248639, 1.324394, 13.243945, 1.324394, 13.243945, 1.324394, 13.243945],
+                       1: [18.328769, 0.012713, 0.386279, 0.056495, 0.844448, 0.056495, 0.844448]}}
 
     res_trafo = {"YNd": {0: [1.132975, 93.535632, 0., 0., 0., 0., 0., 0., 0., 0., 0.208569, 1.650563, 1.132975,
                              93.535632, 0., 0., -67.674057, 26.725911, 0., 0., 1.01121, -108.014475, 0.9613, -96.225276,
@@ -609,7 +609,67 @@ def test_trafo_1ph(inverse_y):
     # todo YNyn
 
 
-def test_trafo_1ph_c():
+@pytest.mark.parametrize("inverse_y", (True, False), ids=("Inverse Y", "LU factorization"))
+def test_trafo_1ph_c(inverse_y):
+    res_bus = {"YNd": {0: [5.773829, 0.414233, 6.372184, 1.324104, 13.241768, 1.324104, 13.241768],
+                       1: [0, np.inf, np.inf, 0.057101, 0.864122, 0.057101, 0.864122]},
+               "Dyn": {0: [],
+                       1: []}}
+
+    res_trafo = {"YNd": {0: [1.002174, 93.490498, 0., 0., 0., 0., 0., 0., 0., 0., 0.1935, 1.60556, 1.002398, 93.529907,
+                             0., 0., -54.406846, 21.863020, 0., 0., 0.921057, -108.362484, 0.874034, -96.352941,
+                             1.002406, 93.451971, 0., 0., 55.627668, 15.149927, 0., 0., 0.905632, 108.686711, 0.868646,
+                             96.392189],
+                         1: [0.000787, -86.176339, 0., 0., 0.003334, 0.049885, 0., 0., 1., -0., 0., 0., 0.000787,
+                             153.822675, 0., 0., 0.003333, 0.049885, 0., 0., 1., -120., 1.731912, -150.000162, 0.000787,
+                             33.822748, 0., 0., 0.003333, 0.049884, 0., 0., 1., 120., 1.731912, 149.999837]
+                         },
+                 "Dyn": {0: [],
+                         1: []
+                         }
+                 }
+
+    def _check_result(vector_group, tol=(1e-6, 1e-6, 1e-6, 1e-6)):
+        net.trafo.vector_group = vector_group
+        pp.runpp(net)
+        fault_bus = 0
+        sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=True,
+                   inverse_y=inverse_y)
+        assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=tol[0])
+        assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=tol[1])
+
+        fault_bus = 1
+        sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=True,
+                   inverse_y=inverse_y)
+        assert np.allclose(res_bus[vector_group][fault_bus], net.res_bus_sc.loc[fault_bus].values, rtol=0, atol=tol[2])
+        assert np.allclose(res_trafo[vector_group][fault_bus], net.res_trafo_sc.loc[0].values, rtol=0, atol=tol[3])
+
+    net = pp.create_empty_network(sn_mva=1)
+    pp.create_bus(net, vn_kv=110.)
+    pp.create_bus(net, vn_kv=20.)
+
+    pp.create_ext_grid(net, 0, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+
+    pp.create_transformer_from_parameters(net, 0, 1, sn_mva=150,
+                                          pfe_kw=10, i0_percent=0.1,
+                                          vn_hv_kv=110., vn_lv_kv=20, vk_percent=16, vkr_percent=0.5,
+                                          pt_percent=12, vk0_percent=15.2,
+                                          vkr0_percent=0.5, vector_group="YNd",
+                                          mag0_percent=100, mag0_rx=0, si0_hv_partial=0.5)
+
+    _check_result("YNd", tol=(1e-6, 5e-6, 1e-5, 5e-3))
+    non_degree = [i for i, c in enumerate(net.res_trafo_sc.columns) if "degree" not in c]
+    assert np.allclose(np.array(res_trafo["YNd"][1])[non_degree], net.res_trafo_sc.loc[0].values[non_degree],
+                       rtol=0, atol=1e-5)  # results for angle (degree) are not as accurate in this example
+
+    # todo Dyn
+    # todo Yyn
+    # todo YNyn
+
+
+def test_trafo_1ph_c_sgen():
     res_bus = {"YNd": {0: [5.773829, 0.414233, 6.372184, 1.324104, 13.241768],
                        1: [0, np.inf, np.inf, 0.057101, 0.864122]},
                "Dyn": {0: [],
@@ -653,8 +713,10 @@ def test_trafo_1ph_c():
                                           pfe_kw=10, i0_percent=0.1,
                                           vn_hv_kv=110., vn_lv_kv=20, vk_percent=16, vkr_percent=0.5,
                                           pt_percent=12, vk0_percent=15.2,
-                                          vkr0_percent=0.5, vector_group="YNd",
+                                          vkr0_percent=0.5, vector_group="Dyn",
                                           mag0_percent=100, mag0_rx=0, si0_hv_partial=0.5)
+    #pp.create_sgen(net, 1, 2, 0, 1, k=0, generator_type="current_source", kappa=0)
+    pp.create_sgen(net, 1, 20, 0, 100, k=0, generator_type="current_source", kappa=0, current_angle_degree=-32.869393)
 
     _check_result("YNd", tol=(1e-6, 5e-6, 1e-5, 5e-3))
     non_degree = [i for i, c in enumerate(net.res_trafo_sc.columns) if "degree" not in c]
@@ -664,6 +726,20 @@ def test_trafo_1ph_c():
     # todo Dyn
     # todo Yyn
     # todo YNyn
+
+
+def test_isolated_sgen():
+    net = pp.create_empty_network(sn_mva=1)
+    pp.create_bus(net, vn_kv=20.)
+    pp.create_ext_grid(net, 0, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+    # pp.create_sgen(net, 1, 2, 0, 1, k=0, generator_type="current_source", kappa=0)
+    pp.create_sgen(net, 0, 50, 0, 100, k=0, generator_type="current_source", kappa=0)
+
+    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", bus=0, use_pre_fault_voltage=True)
+
 
 
 def test_trafo():
@@ -716,8 +792,8 @@ def test_sc_1ph_impedance():
     assert np.allclose(net.res_bus_sc.ikss_ka, [5.248639, 0.625166], rtol=0, atol=1e-6)
     assert np.allclose(net.res_bus_sc.rk0_ohm, [1.324394, 12.762198], rtol=0, atol=1e-6)
     assert np.allclose(net.res_bus_sc.xk0_ohm, [13.243945, 30.821973], rtol=0, atol=1e-6)
-    assert np.allclose(net.res_bus_sc.rk_ohm, [1.3243945, 62.1554916], rtol=0, atol=1e-5)
-    assert np.allclose(net.res_bus_sc.xk_ohm, [13.2439445, 137.5549268], rtol=0, atol=1e-5)
+    assert np.allclose(net.res_bus_sc.rk1_ohm, [1.3243945, 62.1554916], rtol=0, atol=1e-5)
+    assert np.allclose(net.res_bus_sc.xk1_ohm, [13.2439445, 137.5549268], rtol=0, atol=1e-5)
 
 
 def test_mv_oberrhein():

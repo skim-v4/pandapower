@@ -4,6 +4,8 @@
 # and Energy System Technology (IEE), Kassel. All rights reserved.
 import copy
 
+from pandapower.build_bus import _add_load_sc_impedances_ppc
+
 try:
     import pandaplan.core.pplog as logging
 except ImportError:
@@ -16,7 +18,7 @@ from scipy.sparse.linalg import factorized
 from numbers import Number
 
 from pandapower.auxiliary import _clean_up, _add_ppc_options, _add_sc_options, _add_auxiliary_elements
-from pandapower.pd2ppc import _pd2ppc
+from pandapower.pd2ppc import _pd2ppc, _ppc2ppci
 from pandapower.pd2ppc_zero import _pd2ppc_zero
 from pandapower.results import _copy_results_ppci_to_ppc
 
@@ -211,6 +213,9 @@ def _calc_current(net, ppci_orig, bus):
 
 def _calc_sc(net, bus):
     ppc, ppci = _init_ppc(net)
+    if net._options.get("use_pre_fault_voltage", False):
+        _add_load_sc_impedances_ppc(net, ppc)  # add SC impedances for loads
+        ppci = _ppc2ppci(ppc, net)
 
     _calc_current(net, ppci, bus)
 
@@ -235,27 +240,36 @@ def _calc_sc_1ph(net, bus):
     _, ppci_1, _ = _create_k_updated_ppci(net, ppci_1, ppci_bus=ppci_bus)
     _calc_ybus(ppci_1)
 
+    # input for negative sequence is same as for positive sequence
+    ppc_2 = copy.deepcopy(ppc_1)
+    ppci_2 = copy.deepcopy(ppci_1)
+
+    # placing this here allows saving the calculation of Ybus if not type C
+    if net._options.get("use_pre_fault_voltage", False):
+        _add_load_sc_impedances_ppc(net, ppc_1)  # add SC impedances for loads
+        ppci_1 = _ppc2ppci(ppc_1, net)
+        _, ppci_1, _ = _create_k_updated_ppci(net, ppci_1, ppci_bus=ppci_bus)
+        _calc_ybus(ppci_1)
+
     # zero seq bus impedance
     ppc_0, ppci_0 = _pd2ppc_zero(net, ppc_1['branch'][:, K_ST])
     _calc_ybus(ppci_0)
 
     if net["_options"]["inverse_y"]:
-        _calc_zbus(net, ppci_1)
         _calc_zbus(net, ppci_0)
+        _calc_zbus(net, ppci_1)
+        _calc_zbus(net, ppci_2)
     else:
         # Factorization Ybus once
-        ppci_1["internal"]["ybus_fact"] = factorized(ppci_1["internal"]["Ybus"].tocsc())
         ppci_0["internal"]["ybus_fact"] = factorized(ppci_0["internal"]["Ybus"].tocsc())
+        ppci_1["internal"]["ybus_fact"] = factorized(ppci_1["internal"]["Ybus"].tocsc())
+        ppci_2["internal"]["ybus_fact"] = factorized(ppci_2["internal"]["Ybus"].tocsc())
 
-    ppci_bus = _get_is_ppci_bus(net, bus)
     _calc_rx(net, ppci_1, ppci_bus)
-    _add_kappa_to_ppc(net, ppci_1)
+    _add_kappa_to_ppc(net, ppci_1)  # todo add kappa only to ppci_1?
 
     _calc_rx(net, ppci_0, ppci_bus)
-
-    # input for negative sequence is same as for positive sequence
-    ppc_2 = copy.deepcopy(ppc_1)
-    ppci_2 = copy.deepcopy(ppci_1)
+    _calc_rx(net, ppci_2, ppci_bus)
 
     _calc_ikss_1ph(net, ppci_0, ppci_1, ppci_2, ppci_bus)
     # from here on, the V_ikss in ppci_0, ppci_1, ppci_2 are in phase frame!
