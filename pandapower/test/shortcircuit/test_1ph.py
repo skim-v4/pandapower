@@ -775,10 +775,66 @@ def test_petersen_coil():
                        [0.250568, 0.012714, 150.386279, 0.056495, 0.844448, 0.056495, 0.844448],
                        rtol=0, atol=1e-6)
 
+    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=True)
+    assert np.allclose(net.res_bus_sc.values,
+                       [0.227683, 0.013334, 150.405114, 0.057101, 0.864115, 0.057101, 0.864115],
+                       rtol=0, atol=1e-6)
+
     net.bus.vn_kv = 115, 21
     sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
     assert np.allclose(net.res_bus_sc.values,
                        [0.262955, 0.012714, 150.386279, 0.060566, 0.885154, 0.060566, 0.885154],
+                       rtol=0, atol=1e-6)
+
+    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=True)
+    assert np.allclose(net.res_bus_sc.values,
+                       [0.237905, 0.013334, 150.405114, 0.061169, 0.904801, 0.061169, 0.904801],
+                       rtol=0, atol=1e-6)
+
+
+def test_fault_impedance():
+    net = pp.create_empty_network(sn_mva=1)
+    pp.create_bus(net, vn_kv=110.)
+    pp.create_bus(net, vn_kv=20.)
+
+    pp.create_ext_grid(net, 0, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+
+    pp.create_transformer_from_parameters(net, 0, 1, sn_mva=150,
+                                          pfe_kw=10, i0_percent=0.1,
+                                          vn_hv_kv=110., vn_lv_kv=20, vk_percent=16, vkr_percent=0.5,
+                                          pt_percent=12, vk0_percent=15.2,
+                                          vkr0_percent=0.5, vector_group="Dyn",
+                                          mag0_percent=100, mag0_rx=0, si0_hv_partial=0.5)
+    fault_bus = 1
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False,
+               x_fault_ohm=5, r_fault_ohm=1)
+    assert np.allclose(net.res_bus_sc.values,
+                       [2.195134, 1.012713, 5.386279, 1.056495, 5.844448, 1.056495, 5.844448],
+                       rtol=0, atol=1e-6)
+
+    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=True,
+               x_fault_ohm=5, r_fault_ohm=1)
+    assert np.allclose(net.res_bus_sc.values,
+                       [1.988823, 1.013333, 5.405114, 1.057101, 5.864115, 1.057101, 5.864115],
+                       rtol=0, atol=1e-6)
+
+    net.bus.vn_kv = 115, 21
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False,
+               x_fault_ohm=5, r_fault_ohm=1)
+    assert np.allclose(net.res_bus_sc.values,
+                       [2.294113, 1.012713, 5.386279, 1.060566, 5.885154, 1.060566, 5.885154],
+                       rtol=0, atol=1e-6)
+
+    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=True,
+               x_fault_ohm=5, r_fault_ohm=1)
+    assert np.allclose(net.res_bus_sc.values,
+                       [2.069538, 1.013333, 5.405114, 1.061169, 5.904801, 1.061169, 5.904801],
                        rtol=0, atol=1e-6)
 
 
