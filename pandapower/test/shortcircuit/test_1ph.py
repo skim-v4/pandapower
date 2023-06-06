@@ -739,6 +739,9 @@ def test_isolated_sgen():
 
     pp.runpp(net)
     sc.calc_sc(net, fault="1ph", case="max", bus=0, use_pre_fault_voltage=True)
+    assert np.allclose(net.res_bus_sc.values,
+                       [26.217212, 0.043782, 0.437816, 0.019738, 0.441312, 0.043782, 0.437816],
+                       rtol=0, atol=1e-5)
 
 
 def test_isolated_load():
@@ -752,6 +755,9 @@ def test_isolated_load():
 
     pp.runpp(net)
     sc.calc_sc(net, fault="1ph", case="max", bus=0, use_pre_fault_voltage=True)
+    assert np.allclose(net.res_bus_sc.values,
+                       [26.373383, 0.043782, 0.437816, 0.067045, 0.431784, 0.067045, 0.431784],
+                       rtol=0, atol=5e-6)
 
 
 def test_petersen_coil():

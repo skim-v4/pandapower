@@ -246,10 +246,14 @@ def _calc_sc_1ph(net, bus):
 
     # placing this here allows saving the calculation of Ybus if not type C
     if net._options.get("use_pre_fault_voltage", False):
-        _add_load_sc_impedances_ppc(net, ppc_1)  # add SC impedances for loads
+        _add_load_sc_impedances_ppc(net, ppc_1)  # add SC impedances for sgens and loads
         ppci_1 = _ppc2ppci(ppc_1, net)
         _, ppci_1, _ = _create_k_updated_ppci(net, ppci_1, ppci_bus=ppci_bus)
         _calc_ybus(ppci_1)
+
+        _add_load_sc_impedances_ppc(net, ppc_2, relevant_elements=("load",))  # add SC impedances for loads
+        ppci_2 = _ppc2ppci(ppc_2, net)
+        _calc_ybus(ppci_2)
 
     # zero seq bus impedance
     ppc_0, ppci_0 = _pd2ppc_zero(net, ppc_1['branch'][:, K_ST])
