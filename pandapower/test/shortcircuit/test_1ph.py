@@ -741,6 +741,19 @@ def test_isolated_sgen():
     sc.calc_sc(net, fault="1ph", case="max", bus=0, use_pre_fault_voltage=True)
 
 
+def test_isolated_load():
+    net = pp.create_empty_network(sn_mva=1)
+    pp.create_bus(net, vn_kv=20.)
+    pp.create_ext_grid(net, 0, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+    # pp.create_sgen(net, 1, 2, 0, 1, k=0, generator_type="current_source", kappa=0)
+    pp.create_load(net, 0, 50)
+
+    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", bus=0, use_pre_fault_voltage=True)
+
+
 
 def test_trafo():
     results = {
