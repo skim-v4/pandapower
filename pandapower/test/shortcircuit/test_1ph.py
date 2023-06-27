@@ -800,6 +800,45 @@ def test_petersen_coil():
                        rtol=0, atol=1e-6)
 
 
+def test_petersen_coil_compensation():
+    net = pp.create_empty_network(sn_mva=1)
+    pp.create_bus(net, vn_kv=110.)
+    pp.create_bus(net, vn_kv=20.)
+    pp.create_bus(net, vn_kv=20.)
+
+    pp.create_ext_grid(net, 0, s_sc_max_mva=1000, s_sc_min_mva=800,
+                       rx_max=0.1, x0x_max=1, r0x0_max=0.1,
+                       rx_min=0.1, x0x_min=1, r0x0_min=0.1)
+
+    pp.create_transformer_from_parameters(net, 0, 1, sn_mva=150,
+                                          pfe_kw=10, i0_percent=0.1,
+                                          vn_hv_kv=110., vn_lv_kv=20, vk_percent=16, vkr_percent=0.5,
+                                          pt_percent=12, vk0_percent=15.2,
+                                          vkr0_percent=0.5, vector_group="Dyn",
+                                          mag0_percent=100, mag0_rx=0, si0_hv_partial=0.5, xn_ohm=1200)
+    pp.create_line_from_parameters(net, 1, 2, 1, 0.1, 0.2, 250, 1, r0_ohm_per_km=0.05, x0_ohm_per_km=0.1,
+                                   c0_nf_per_km=300)
+    fault_bus = 2
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    #assert np.allclose(net.res_bus_sc.values, [0.006989, 0.10974, 5449.743428, 0.156495, 1.044448, 0.156495, 1.044448],
+    #                   rtol=0, atol=1e-5)
+    assert np.isclose(net.res_bus_sc.ikss_ka, 0.006989, atol=1e-6)
+
+    pp.runpp(net)
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=True)
+    assert np.isclose(net.res_bus_sc.ikss_ka, 0.006354, atol=1e-6)
+   # assert np.allclose(net.res_bus_sc.values,
+    #                   [0.006354, 0.11116, 5449.786579, 0.157118, 1.064188, 0.157118, 1.064188],
+     #                  rtol=0, atol=1e-6)
+
+    net.trafo.xn_ohm = 100
+    sc.calc_sc(net, fault="1ph", case="max", branch_results=True, bus=fault_bus, use_pre_fault_voltage=False)
+    assert np.isclose(net.res_bus_sc.ikss_ka, 0.122395, atol=1e-6)
+    assert np.allclose(net.res_bus_sc.values,
+                       [0.122395, 0.064938, 309.241146, 0.156495, 1.044448, 0.156495, 1.044448],
+                       rtol=0, atol=1e-5)
+
+
 def test_fault_impedance():
     net = pp.create_empty_network(sn_mva=1)
     pp.create_bus(net, vn_kv=110.)
