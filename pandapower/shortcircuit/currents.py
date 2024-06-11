@@ -269,10 +269,8 @@ def _current_source_current(net, ppci, bus_idx, sequence=1):
                              sgen.k.values.reshape(-1, 1) * i_sgen_n_pu * delta_V,
                              i_sgen_n_pu * sgen.kappa.values.reshape(-1, 1))
         i_sgen_pu = np.abs(i_sgen_pu)
-        extra_angle = ppci["bus"][sgen_buses_ppc, VA]
     else:
         i_sgen_pu = (sgen.sn_mva.values / net.sn_mva * sgen.k.values)
-        extra_angle = 0
 
     if sgen_angle is not None and (fault == "3ph" or fault == "1ph" and type_c):
         i_sgen_pu = i_sgen_pu * np.exp(sgen_angle * 1j)
@@ -280,6 +278,12 @@ def _current_source_current(net, ppci, bus_idx, sequence=1):
     #     i_sgen_pu *= 0
 
     buses, ikcv_pu, _ = _sum_by_group(sgen_buses_ppc, i_sgen_pu, i_sgen_pu)
+
+    if type_c :
+        extra_angle = ppci["bus"][buses, VA]
+    else :
+        extra_angle = 0
+
     ikcv_pu = ikcv_pu.flatten()
     ppci["bus"][buses, [IKCV]] = ikcv_pu if sgen_angle is None else np.abs(ikcv_pu)
     if sgen_angle is not None and (fault == "3ph" or fault == "1ph" and type_c):
