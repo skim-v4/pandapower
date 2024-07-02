@@ -109,6 +109,8 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
         k_st = np.ones(len(ppc['branch']))
     if "xn_ohm" not in trafo_df.columns:
         trafo_df["xn_ohm"] = 0.
+    if "rn_ohm" not in trafo_df.columns:
+        trafo_df["rn_ohm"] = 0.
     branch_lookup = net["_pd2ppc_lookups"]["branch"]
     if "trafo" not in branch_lookup:
         return
@@ -233,7 +235,7 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
         # z0_k = (r_sc + x_sc * 1j) / parallel * vn_trafo_hv / vn_bus_hv
         # z0_k = (r_sc + x_sc * 1j) / parallel * tap_hv
         z0_k = (r_sc + x_sc * 1j) / parallel
-        z_n_ohm = trafos["xn_ohm"].fillna(0).values
+        z_n_ohm = trafos["rn_ohm"].fillna(0).values + 1j * trafos["xn_ohm"].fillna(0).values
         k_st_tr = trafos["k_st"].fillna(1).values
 
         if mode == "sc":  # or trafo_model == "pi":
@@ -249,13 +251,13 @@ def _add_trafo_sc_impedance_zero(net, ppc, trafo_df=None, k_st=None):
             z_0THV = (vkr0_percent / 100 + 1j * vkx0_percent / 100) * (np.square(vn_trafo_hv) / sn_trafo_mva) / parallel
             # grounding impedance: for power system unit, the neutral grounding is set at the HV side.
             # for petersen coil and power transformers, the neutral grounding is at the LV side
-            z_petersen_pu = 3j * z_n_ohm / ((vn_bus_lv ** 2) / net.sn_mva)
-            # z0_k_psu = (z_0THV * k_st_tr + 3j * z_n_ohm) / ((vn_bus_hv ** 2) / net.sn_mva)
-            z0_k_psu = (z_0THV * k_st_tr + 3j * z_n_ohm) / ((vn_trafo_hv ** 2) / net.sn_mva)
+            z_petersen_pu = 3 * z_n_ohm / ((vn_bus_lv ** 2) / net.sn_mva)
+            # z0_k_psu = (z_0THV * k_st_tr + 3 * z_n_ohm) / ((vn_bus_hv ** 2) / net.sn_mva)
+            z0_k_psu = (z_0THV * k_st_tr + 3 * z_n_ohm) / ((vn_trafo_hv ** 2) / net.sn_mva)
             z0_k = np.where(power_station_unit, z0_k_psu, z0_k + z_petersen_pu)
 
         y0_k = 1 / z0_k  # adding admittance for "pi" model
-        # y0_k = 1 / (z0_k * k_st_tr + 3j * z_n_ohm)  # adding admittance for "pi" model
+        # y0_k = 1 / (z0_k * k_st_tr + 3 * z_n_ohm)  # adding admittance for "pi" model
 
         # =============================================================================
         #       Transformer magnetising impedance for zero sequence
