@@ -172,15 +172,15 @@ def _calc_current(net, ppci_orig, bus):
     non_ps_gen_ppci_bus, non_ps_gen_ppci, ps_gen_bus_ppci_dict =\
         _create_k_updated_ppci(net, ppci_orig, ppci_bus=ppci_bus)
 
-    # For each ps_gen_bus, one unique ppci is required
+    # Ensures each each ps_gen_bus gets a unique ppci
     ps_gen_ppci_bus = list(ps_gen_bus_ppci_dict.keys())
 
     for calc_bus in ps_gen_ppci_bus+[non_ps_gen_ppci_bus]:
         if isinstance(calc_bus, np.ndarray):
-            # Use ppci for general bus
+            # General buses use the common non-power station ppci
             this_ppci, this_ppci_bus = non_ps_gen_ppci, calc_bus
         else:
-            # Use specific ps_gen_bus ppci
+            # Power-station buses use their individual ppci
             this_ppci, this_ppci_bus = ps_gen_bus_ppci_dict[calc_bus], np.array([calc_bus])
 
         _calc_ybus(this_ppci)
@@ -222,14 +222,15 @@ def _calc_sc(net, bus):
     _extract_results(net, ppc_0=None, ppc_1=ppc, ppc_2=None, bus=bus)
     _clean_up(net)
 
+    # clears temporary factorization results
     if "ybus_fact" in ppci["internal"]:
-        # Delete factorization object
         ppci["internal"].pop("ybus_fact")
 
 
 def _calc_sc_1ph(net, bus):
     """
-    Calculation for single phase to ground short-circuit currents
+    Calculation for single phase to ground short-circuit currents.
+    Uses positive, negative and zero sequence networks.
     """
     _add_auxiliary_elements(net)
     # pos. seq bus impedance
@@ -243,12 +244,12 @@ def _calc_sc_1ph(net, bus):
     ppc_2 = copy.deepcopy(ppc_1)
     ppci_2 = copy.deepcopy(ppci_1)
 
-    # placing this here allows saving the calculation of Ybus if not type C
+    # Conditionally add 'Type C' pre-fault voltage conditions
     if net._options.get("use_pre_fault_voltage", False):
         _add_load_sc_impedances_ppc(net, ppc_1)  # add SC impedances for sgens and loads
-        ppci_1 = _ppc2ppci(ppc_1, net)
+        ppci_1 = _ppc2ppci(ppc_1, net) # convert ppc to ppci
         _, ppci_1, _ = _create_k_updated_ppci(net, ppci_1, ppci_bus=ppci_bus)
-        _calc_ybus(ppci_1)
+        _calc_ybus(ppci_1) # recalculates Ybus after adding loads
 
         _add_load_sc_impedances_ppc(net, ppc_2, relevant_elements=("load",))  # add SC impedances for loads
         ppci_2 = _ppc2ppci(ppc_2, net)
@@ -268,11 +269,12 @@ def _calc_sc_1ph(net, bus):
         ppci_1["internal"]["ybus_fact"] = factorized(ppci_1["internal"]["Ybus"].tocsc())
         ppci_2["internal"]["ybus_fact"] = factorized(ppci_2["internal"]["Ybus"].tocsc())
 
+    # calculate R/X ratios and kappa for each sequence
     _calc_rx(net, ppci_1, ppci_bus)
-    _add_kappa_to_ppc(net, ppci_1)  # todo add kappa only to ppci_1?
-
     _calc_rx(net, ppci_0, ppci_bus)
     _calc_rx(net, ppci_2, ppci_bus)
+
+    _add_kappa_to_ppc(net, ppci_1)  # todo add kappa only to ppci_1?
 
     _calc_ikss_1ph(net, ppci_0, ppci_1, ppci_2, ppci_bus)
     # from here on, the V_ikss in ppci_0, ppci_1, ppci_2 are in phase frame!
@@ -285,5 +287,7 @@ def _calc_sc_1ph(net, bus):
     ppc_0 = _copy_results_ppci_to_ppc(ppci_0, ppc_0, "sc")
     ppc_1 = _copy_results_ppci_to_ppc(ppci_1, ppc_1, "sc")
     ppc_2 = _copy_results_ppci_to_ppc(ppci_2, ppc_2, "sc")
+
+    # extract and format output results
     _extract_results(net, ppc_0, ppc_1, ppc_2, bus=bus)
     _clean_up(net)
