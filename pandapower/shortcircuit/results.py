@@ -68,6 +68,7 @@ def _get_bus_ppc_idx_for_br_all_results(net, ppc, bus):
 
 
 def _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2):
+
     # we use 3D arrays here to easily identify via axis:
     # 0: line index, 1: from/to, 2: phase
     i_ka_0 = ppc_0['branch'][:, [IKSS_F, IKSS_T]] * np.exp(1j * np.deg2rad(ppc_0['branch'][:, [IKSS_ANGLE_F, IKSS_ANGLE_T]].real))
@@ -99,6 +100,67 @@ def _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2):
     s_abc_mva = np.conj(i_abc_ka) * v_abc_pu * v_base_kv / np.sqrt(3)
 
     return v_abc_pu, i_abc_ka, s_abc_mva
+
+
+def _calculate_all_branch_phase_results(net, ppc_0, ppc_1, ppc_2, bus):
+
+    i_ka_f_0 = ppc_0['internal']["branch_ikss_f"] * np.exp(1j * np.deg2rad(ppc_0['internal']["branch_ikss_angle_f"]))
+    i_ka_t_0 = ppc_0['internal']["branch_ikss_t"] * np.exp(1j * np.deg2rad(ppc_0['internal']["branch_ikss_angle_t"]))
+    i_ka_f_1 = ppc_1['internal']["branch_ikss_f"] * np.exp(1j * np.deg2rad(ppc_1['internal']["branch_ikss_angle_f"]))
+    i_ka_t_1 = ppc_1['internal']["branch_ikss_t"] * np.exp(1j * np.deg2rad(ppc_1['internal']["branch_ikss_angle_t"]))
+    i_ka_f_2 = ppc_2['internal']["branch_ikss_f"] * np.exp(1j * np.deg2rad(ppc_2['internal']["branch_ikss_angle_f"]))
+    i_ka_t_2 = ppc_2['internal']["branch_ikss_t"] * np.exp(1j * np.deg2rad(ppc_2['internal']["branch_ikss_angle_t"]))
+
+    i_ka_f_0 = np.abs(np.delete(i_ka_f_0, 1, axis=1))
+    i_ka_f_1 = np.abs(np.delete(i_ka_f_1, 1, axis=1))
+    i_ka_f_2 = np.abs(np.delete(i_ka_f_2, 1, axis=1))
+    i_ka_t_0 = np.abs(np.delete(i_ka_t_0, 1, axis=1))
+    i_ka_t_1 = np.abs(np.delete(i_ka_t_1, 1, axis=1))
+    i_ka_t_2 = np.abs(np.delete(i_ka_t_2, 1, axis=1))
+
+    # merge currents to 'from' and 'to' arrays
+    stacked_f = np.stack([i_ka_f_0, i_ka_f_1, i_ka_f_2], axis=2)
+    stacked_t = np.stack([i_ka_t_0, i_ka_t_1, i_ka_t_2], axis=2)
+
+    # format axes for 'sequence_to_phase', columns are sequences
+    # 0: bus, 1: line, 2: sequence
+    i_012_f_ka = np.swapaxes(stacked_f, 1, 0)
+    i_012_t_ka = np.swapaxes(stacked_t, 1, 0)
+    '''compare with input format from _calculate_branch_phase_results
+        # 0: line index, 1: from/to, 2: sequence'''
+
+    # apply sequence_to_phase along axis = 2, sequence columns
+    i_abc_f_ka = np.apply_along_axis(sequence_to_phase, 2, arr=i_012_f_ka)
+
+    i_abc_t_ka = np.apply_along_axis(sequence_to_phase, 2, arr=i_012_t_ka)
+
+    # currents < 0.1 uA = 0
+    i_abc_f_ka[np.abs(i_abc_f_ka) < 1e-10] = 0
+    i_abc_t_ka[np.abs(i_abc_t_ka) < 1e-10] = 0
+
+    i_abc_f_ka = np.abs(i_abc_f_ka)
+    i_abc_t_ka = np.abs(i_abc_t_ka)
+
+
+
+    # flatten 3d arrays into 2d
+    # d0, d1, d2 = i_012_f_ka.shape
+    # i_012_f_ka=i_012_f_ka.reshape(d0 * d1, d2)
+    # i_012_t_ka=i_012_t_ka.reshape(d0 * d1, d2)
+    # stacked_f_t = np.vstack([i_012_f_ka, i_012_t_ka])
+    # i_012_ka = [np.arange(stacked_f_t.shape[0]).reshape(2, -1).T.flatten()]
+    # i_abc_ka = sequence_to_phase(np.vstack([i_ka_0, i_ka_1, i_ka_2]))
+    # i_abc_ka[np.abs(i_abc_ka) < 1e-6] = 0
+
+    #return v_abc_pu, i_abc_f_ka, i_abc_t_ka, s_abc_mva
+
+
+def _get_line_1ph_all_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva):
+    branch_lookup = net._pd2ppc_lookups["branch"]
+    case = net._options["case"]
+    if "line" in branch_lookup:
+        f, t = branch_lookup["line"]
+        minmax = np.max if case == "max" else np.min
 
 
 def _get_line_1ph_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva):
@@ -155,11 +217,18 @@ def _get_trafo_1ph_results(net, v_abc_pu, i_abc_ka, s_abc_mva):
 
 def _extract_results(net, ppc_0, ppc_1, ppc_2, bus):
     _get_bus_results(net, ppc_0, ppc_1, ppc_2, bus)
+
     if net._options["branch_results"]:
         if net["_options"]["fault"] == "1ph":
-            v_abc_pu, i_abc_ka, s_abc_mva = _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2)
-            _get_line_1ph_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva)
-            _get_trafo_1ph_results(net, v_abc_pu, i_abc_ka, s_abc_mva)
+            if net._options['return_all_currents']:
+                v_abc_pu, i_abc_ka, s_abc_mva = _calculate_all_branch_phase_results(net, ppc_0, ppc_1, ppc_2, bus)
+                _get_line_1ph_all_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva)
+                _get_trafo_1ph_all_results(net, v_abc_pu, i_abc_ka, s_abc_mva)
+            else:
+                v_abc_pu, i_abc_ka, s_abc_mva = _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2)
+                _get_line_1ph_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva)
+                _get_trafo_1ph_results(net, v_abc_pu, i_abc_ka, s_abc_mva)
+
         else:
             if net._options['return_all_currents']:
                 _get_line_all_results(net, ppc_1, bus)
@@ -171,6 +240,26 @@ def _extract_results(net, ppc_0, ppc_1, ppc_2, bus):
                 _get_trafo_results(net, ppc_1)
                 _get_trafo3w_results(net, ppc_1)
                 _get_switch_results(net, ppc_1)
+
+
+# def _extract_results(net, ppc_0, ppc_1, ppc_2, bus):
+#     _get_bus_results(net, ppc_0, ppc_1, ppc_2, bus)
+#     if net._options["branch_results"]:
+#         if net["_options"]["fault"] == "1ph":
+#             v_abc_pu, i_abc_ka, s_abc_mva = _calculate_branch_phase_results(ppc_0, ppc_1, ppc_2)
+#             _get_line_1ph_results(net, ppc_1, v_abc_pu, i_abc_ka, s_abc_mva)
+#             _get_trafo_1ph_results(net, v_abc_pu, i_abc_ka, s_abc_mva)
+#         else:
+#             if net._options['return_all_currents']:
+#                 _get_line_all_results(net, ppc_1, bus)
+#                 _get_trafo_all_results(net, ppc_1, bus)
+#                 _get_trafo3w_all_results(net, ppc_1, bus)
+#                 _get_switch_all_results(net, ppc_1, bus)
+#             else:
+#                 _get_line_results(net, ppc_1)
+#                 _get_trafo_results(net, ppc_1)
+#                 _get_trafo3w_results(net, ppc_1)
+#                 _get_switch_results(net, ppc_1)
 
 
 def _get_bus_results(net, ppc_0, ppc_1, ppc_2, bus):
@@ -301,6 +390,7 @@ def _get_line_all_results(net, ppc, bus):
         if net._options["ith"]:
             net.res_line_sc["ith_ka"] = minmax(ppc["internal"]["branch_ith_f"].iloc[f:t,:].loc[:, ppc_index].values.real.reshape(-1, 1),
                                                ppc["internal"]["branch_ith_t"].iloc[f:t,:].loc[:, ppc_index].values.real.reshape(-1, 1))
+
 
 def _get_switch_all_results(net, ppc, bus):
     case = net._options["case"]

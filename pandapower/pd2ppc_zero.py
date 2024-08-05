@@ -86,7 +86,7 @@ def _build_branch_ppc_zero(net, ppc, k_st=None):
     mode = net._options["mode"]
     ppc["branch"] = np.zeros(shape=(length, branch_cols), dtype=np.complex128)
     if mode == "sc":
-        branch_sc = np.empty(shape=(length, branch_cols_sc), dtype=float)
+        branch_sc = np.empty(shape=(length, branch_cols_sc), dtype=np.float64)
         branch_sc.fill(np.nan)
         ppc["branch"] = np.hstack((ppc["branch"], branch_sc))
     ppc["branch"][:, :13] = np.array([0, 0, 0, 0, 0, 250, 250, 250, 1, 0, 1, -360, 360])

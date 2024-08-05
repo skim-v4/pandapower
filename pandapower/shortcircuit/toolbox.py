@@ -16,7 +16,6 @@ import pandas as pd
 import networkx as nx
 from copy import deepcopy
 from scipy.sparse import csr_matrix as sparse
-
 import pandapower as pp
 import pandapower.topology as top
 import pandapower.shortcircuit as sc
@@ -26,6 +25,7 @@ from pandapower.pypower.idx_bus import BUS_I
 from pandapower.pypower.idx_brch import F_BUS, T_BUS, TAP
 
 __all__ = ["detect_power_station_unit", "calc_sc_on_line"]
+
 
 def detect_power_station_unit(net, mode="auto",
                               max_gen_voltage_kv=80, max_distance_km=0.01):
@@ -84,7 +84,7 @@ def detect_power_station_unit(net, mode="auto",
                         "power_station_trafo"] = t_ix
 
 
-def _create_element_from_exisiting(net, ele_type, ele_ix):
+def _create_element_from_existing(net, ele_type, ele_ix):
     dtypes = net[ele_type].dtypes
     ps = pd.Series(net[ele_type].loc[ele_ix, :].to_dict(), name=_get_index_with_check(net, ele_type,
                                                                                       None))

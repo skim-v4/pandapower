@@ -594,7 +594,7 @@ def _read_with_loc(net, element, variable, index):
 
 def _read_from_object_attribute(net, element, variable, index):
     if hasattr(index, '__iter__') and len(index) > 1:
-        values = np.array(shape=index.shape)
+        values = (np.array(shape=index.shape))
         for i, idx in enumerate(index):
             values[i] = getattr(net[element]["object"].at[idx], variable)
     else:

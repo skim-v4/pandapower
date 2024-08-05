@@ -49,6 +49,7 @@ def _init_ppc(net):
 
     return ppc, ppci
 
+
 def _check_sc_data_integrity(net):
     if not net.gen.empty:
         for col in ("power_station_trafo", "pg_percent"):
@@ -324,5 +325,5 @@ def _create_k_updated_ppci(net, ppci_orig, ppci_bus, zero_sequence=False):
 
     return non_ps_gen_bus, ppci, bus_ppci
 
-# TODO Roman: correction factor for 1ph cases
 
+# TODO Roman: correction factor for 1ph cases
